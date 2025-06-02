@@ -14,12 +14,14 @@
 
 ## 主要功能
 
-- 🔍 自动抓取多个科技网站的最新内容
-- 🤖 AI 智能摘要生成
-- 🔊 文本转语音播报
-- 📱 微信公众号自动推送
-- ⏰ 定时任务调度
-- 📊 内容管理与统计
+- 🔍 每日自动抓取Hacker News和量子位的最新内容
+- 🤖 AI 生成智能摘要
+- 📱 自动发布到微信公众号“烛幽阁”
+
+欢迎关注微信公众号 ​​“烛幽阁”​​，“收听”每日精选新闻摘要。私信添加更多信息源，一起对抗信息茧房！
+<div align="center">
+  <img src="media/zhuyouge.jpg" alt="烛幽阁 Logo" width="200" style="background: transparent; mix-blend-mode: multiply;"/>
+</div>
 
 
 ## 安装步骤
