@@ -44,8 +44,20 @@ def get_hacker_news_page(page_num=1):
     print(f"正在请求页面: {url}", file=sys.stderr)
     
     try:
+        # 使用更真实的浏览器请求头
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0"
         }
         
         # 设置代理
@@ -56,15 +68,36 @@ def get_hacker_news_page(page_num=1):
         
         print(f"使用代理: {proxies}", file=sys.stderr)
         
-        # 尝试使用代理请求
-        try:
-            response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
-            print(f"代理请求状态码: {response.status_code}", file=sys.stderr)
-        except Exception as proxy_error:
-            print(f"使用代理请求失败: {proxy_error}，尝试直接请求", file=sys.stderr)
-            # 代理失败时尝试直接请求
-            response = requests.get(url, headers=headers, timeout=10)
-            print(f"直接请求状态码: {response.status_code}", file=sys.stderr)
+        # 尝试多种请求方式
+        response = None
+        methods = [
+            ("代理请求", lambda: requests.get(url, headers=headers, proxies=proxies, timeout=15, verify=False)),
+            ("直接请求", lambda: requests.get(url, headers=headers, timeout=15, verify=False)),
+            ("无代理请求", lambda: requests.get(url, headers=headers, proxies=None, timeout=15, verify=False))
+        ]
+        
+        for method_name, request_func in methods:
+            try:
+                print(f"尝试 {method_name}...", file=sys.stderr)
+                response = request_func()
+                print(f"{method_name}状态码: {response.status_code}", file=sys.stderr)
+                
+                if response.status_code == 200:
+                    print(f"{method_name}成功", file=sys.stderr)
+                    break
+                elif response.status_code in [403, 405]:
+                    print(f"{method_name}被拒绝 ({response.status_code})，尝试下一种方法", file=sys.stderr)
+                    continue
+                else:
+                    print(f"{method_name}状态码异常: {response.status_code}", file=sys.stderr)
+                    break
+                    
+            except Exception as e:
+                print(f"{method_name}失败: {e}，尝试下一种方法", file=sys.stderr)
+                continue
+        
+        if not response:
+            raise requests.RequestException("所有请求方法都失败了")
         
         response.raise_for_status()
         
