@@ -2,8 +2,13 @@
 """
 Hacker News 爬虫
 
-该脚本用于爬取 Hacker News 网站的内容，并以 JSON 格式输出结果。
-输出的内容包括文章标题、URL 和爬取时间。
+该脚本使用 Hacker News 官方 Algolia API 获取内容，并以 JSON 格式输出结果。
+输出的内容包括文章标题、URL 和发布时间。
+
+优势：
+- 使用官方 API，更稳定可靠
+- 避免网页解析问题
+- 速度更快
 
 用法:
     python crawler_hackernews.py [--pages N]
@@ -27,26 +32,24 @@ from bs4 import BeautifulSoup
 def get_hacker_news_page(page_num=1):
     """
     获取 Hacker News 指定页码的内容
+    使用 Algolia API 获取数据，更稳定可靠
     
     Args:
-        page_num: 页码数，从 1 开始
+        page_num: 页码数，从 0 开始（API 使用 0-based 索引）
     
     Returns:
-        页面内容的 HTML 字符串
+        JSON 数据字典
     """
-    base_url = "https://news.ycombinator.com/"
+    # 使用 Hacker News 官方 Algolia API
+    # front page 故事
+    api_url = f"https://hn.algolia.com/api/v1/search?tags=front_page&page={page_num - 1}&hitsPerPage=30"
     
-    if page_num == 1:
-        url = urljoin(base_url, "front")
-    else:
-        url = urljoin(base_url, f"front?p={page_num}")
-    
-    print(f"正在请求页面: {url}", file=sys.stderr)
+    print(f"正在请求 API: {api_url}", file=sys.stderr)
     
     try:
-        # 使用 curl 通过代理下载
+        # 尝试使用代理
         proxy_url = "http://localhost:7890"
-        print(f"使用代理: {proxy_url}", file=sys.stderr)
+        print(f"尝试使用代理: {proxy_url}", file=sys.stderr)
         
         # 构建 curl 命令
         curl_cmd = [
@@ -55,8 +58,8 @@ def get_hacker_news_page(page_num=1):
             "-L",  # 跟随重定向
             "-m", "30",  # 超时30秒
             "--proxy", proxy_url,
-            "--proxy-insecure",  # 忽略代理SSL证书验证
-            url
+            "-k",  # 忽略SSL证书验证
+            api_url
         ]
         
         print(f"执行 curl 命令: {' '.join(curl_cmd)}", file=sys.stderr)
@@ -64,82 +67,105 @@ def get_hacker_news_page(page_num=1):
         # 执行 curl 命令
         result = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=35)
         
-        if result.returncode == 0:
+        if result.returncode == 0 and result.stdout and len(result.stdout) > 100:
             content = result.stdout
-            print(f"curl 请求成功，获取到页面内容，大小: {len(content)} 字节", file=sys.stderr)
-            return content
+            print(f"API 请求成功（使用代理），获取到数据，大小: {len(content)} 字节", file=sys.stderr)
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                print(f"JSON 解析失败: {e}", file=sys.stderr)
+                return None
         else:
-            print(f"curl 请求失败，返回码: {result.returncode}", file=sys.stderr)
-            print(f"错误输出: {result.stderr}", file=sys.stderr)
-            return None
+            print(f"代理请求失败，尝试直接连接...", file=sys.stderr)
+            
+            # 不使用代理重试
+            curl_cmd_no_proxy = [
+                "curl",
+                "-s",
+                "-L",
+                "-m", "30",
+                api_url
+            ]
+            
+            result = subprocess.run(curl_cmd_no_proxy, capture_output=True, text=True, timeout=35)
+            
+            if result.returncode == 0:
+                content = result.stdout
+                print(f"API 请求成功（直接连接），获取到数据，大小: {len(content)} 字节", file=sys.stderr)
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError as e:
+                    print(f"JSON 解析失败: {e}", file=sys.stderr)
+                    return None
+            else:
+                print(f"API 请求失败，返回码: {result.returncode}", file=sys.stderr)
+                print(f"错误输出: {result.stderr}", file=sys.stderr)
+                return None
             
     except subprocess.TimeoutExpired:
-        print("curl 请求超时", file=sys.stderr)
+        print("API 请求超时", file=sys.stderr)
         return None
     except Exception as e:
-        print(f"获取页面时出错: {e}", file=sys.stderr)
+        print(f"获取 API 数据时出错: {e}", file=sys.stderr)
         return None
 
 
-def parse_stories(html_content):
+def parse_stories(api_data):
     """
-    解析 HTML 内容，提取文章信息
+    解析 API 返回的 JSON 数据，提取文章信息
     
     Args:
-        html_content: HTML 字符串
+        api_data: API 返回的 JSON 数据字典
     
     Returns:
         包含文章信息的列表
     """
-    if not html_content:
-        print("HTML 内容为空，无法解析", file=sys.stderr)
+    if not api_data:
+        print("API 数据为空，无法解析", file=sys.stderr)
         return []
     
-    print(f"开始解析 HTML 内容，长度: {len(html_content)}", file=sys.stderr)
+    if not isinstance(api_data, dict) or 'hits' not in api_data:
+        print(f"API 数据格式错误: {type(api_data)}", file=sys.stderr)
+        return []
     
-    soup = BeautifulSoup(html_content, 'html.parser')
-    
-    # 查找所有文章条目
-    items = soup.find_all('tr', class_='athing')
-    print(f"找到 {len(items)} 个 'athing' 条目", file=sys.stderr)
+    hits = api_data.get('hits', [])
+    print(f"开始解析 API 数据，找到 {len(hits)} 个条目", file=sys.stderr)
     
     stories = []
-    for idx, item in enumerate(items):
+    for idx, hit in enumerate(hits):
         try:
-            # 在 <span class="titleline"> 中查找链接
-            title_span = item.find('span', class_='titleline')
-            if not title_span:
-                print(f"跳过第 {idx+1} 项: 未找到 titleline span", file=sys.stderr)
-                continue
-                
-            # 在 titleline span 中查找第一个链接
-            title_link = title_span.find('a')
-            if not title_link:
-                print(f"跳过第 {idx+1} 项: 在 titleline 中未找到链接", file=sys.stderr)
-                continue
-                
-            title = title_link.get_text(strip=True)
-            url = title_link.get('href')
+            # 从 API 数据中提取信息
+            title = hit.get('title', '')
+            url = hit.get('url', '')
             
-            print(f"处理第 {idx+1} 项: 标题='{title}', URL='{url}'", file=sys.stderr)
+            # 如果没有外部 URL，使用 HN 的讨论链接
+            if not url:
+                object_id = hit.get('objectID', '')
+                if object_id:
+                    url = f"https://news.ycombinator.com/item?id={object_id}"
+                    print(f"处理第 {idx+1} 项: 标题='{title}', 使用讨论链接", file=sys.stderr)
+                else:
+                    print(f"跳过第 {idx+1} 项: 没有 URL 和 objectID", file=sys.stderr)
+                    continue
+            else:
+                print(f"处理第 {idx+1} 项: 标题='{title}', URL='{url}'", file=sys.stderr)
             
-            # 如果 URL 是相对路径，则转换为绝对路径
-            if url and not url.startswith('http'):
-                original_url = url
-                url = urljoin("https://news.ycombinator.com/", url)
-                print(f"  - 将相对路径 '{original_url}' 转换为绝对路径 '{url}'", file=sys.stderr)
-            
-            # 过滤内部链接的逻辑(可选)
-            if "item?id=" in url and not title.startswith(("Ask HN", "Tell HN", "Show HN")):
-                print(f"  - 跳过内部链接: {url}", file=sys.stderr)
-                continue
+            # 获取创建时间，如果没有则使用当前时间
+            created_at = hit.get('created_at', '')
+            if created_at:
+                # API 返回的时间格式: "2023-10-12T10:30:00.000Z"
+                try:
+                    published_date = datetime.fromisoformat(created_at.replace('Z', '+00:00')).isoformat()
+                except:
+                    published_date = datetime.now().isoformat()
+            else:
+                published_date = datetime.now().isoformat()
             
             if title and url:
-                timestamp = datetime.now().isoformat()
                 story = {
                     "title": title,
                     "url": url,
-                    "published_date": timestamp
+                    "published_date": published_date
                 }
                 stories.append(story)
                 print(f"  - 已添加到结果列表", file=sys.stderr)
@@ -153,6 +179,7 @@ def parse_stories(html_content):
 def crawl_hacker_news(num_pages=1):
     """
     爬取 Hacker News 网站
+    使用 Algolia API 获取数据
     
     Args:
         num_pages: 要爬取的页数
@@ -164,9 +191,9 @@ def crawl_hacker_news(num_pages=1):
     
     for page in range(1, num_pages + 1):
         print(f"\n开始爬取第 {page} 页", file=sys.stderr)
-        html_content = get_hacker_news_page(page)
-        if html_content:
-            stories = parse_stories(html_content)
+        api_data = get_hacker_news_page(page)
+        if api_data:
+            stories = parse_stories(api_data)
             all_stories.extend(stories)
             print(f"第 {page} 页爬取完成，获取到 {len(stories)} 个文章", file=sys.stderr)
             
