@@ -1,0 +1,6 @@
+abstraction/
+audio/
+reports/
+temp/
+*.pyc
+xura.db
