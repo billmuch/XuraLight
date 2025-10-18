@@ -312,8 +312,19 @@ def save_abstract_with_audio(text: str, source_name: str, timestamp: int, title:
         logger.error(f"保存摘要和语音文件失败: {str(e)}")
         return None, None
 
-def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] = None) -> List[Dict]:
-    """处理爬虫输出"""
+def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] = None, debug_mode: bool = False) -> List[Dict]:
+    """
+    处理爬虫输出
+    
+    Args:
+        output: 爬虫输出的JSON字符串
+        source_info: 源信息字典
+        limit: 限制处理的文章数量，None表示处理所有文章
+        debug_mode: 是否启用调试模式，True时会保存原始文本到temp目录
+    
+    Returns:
+        处理后的文章列表
+    """
     try:
         articles = json.loads(output)
         if not isinstance(articles, list):
@@ -344,22 +355,23 @@ def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] 
                 logger.warning(f"无法获取文章内容，跳过: {article['url']}")
                 continue
                 
-            # 调试：保存原始文本到temp目录
-            try:
-                temp_dir = Path('temp')
-                temp_dir.mkdir(exist_ok=True)
-                
-                # 使用文章标题和时间戳创建文件名
-                safe_title = sanitize_filename(article['title'])
-                timestamp = int(datetime.now().timestamp())
-                debug_file = temp_dir / f"{timestamp}_{safe_title}_raw.txt"
-                
-                # 保存原始文本
-                with open(debug_file, 'w', encoding='utf-8') as f:
-                    f.write(text)
-                logger.info(f"已保存原始文本到: {debug_file}")
-            except Exception as e:
-                logger.error(f"保存调试文件失败: {str(e)}")
+            # 调试：保存原始文本到temp目录（仅在调试模式下执行）
+            if debug_mode:
+                try:
+                    temp_dir = Path('temp')
+                    temp_dir.mkdir(exist_ok=True)
+                    
+                    # 使用文章标题和时间戳创建文件名
+                    safe_title = sanitize_filename(article['title'])
+                    timestamp = int(datetime.now().timestamp())
+                    debug_file = temp_dir / f"{timestamp}_{safe_title}_raw.txt"
+                    
+                    # 保存原始文本
+                    with open(debug_file, 'w', encoding='utf-8') as f:
+                        f.write(text)
+                    logger.info(f"已保存原始文本到: {debug_file}")
+                except Exception as e:
+                    logger.error(f"保存调试文件失败: {str(e)}")
             
             # 生成摘要
             success, result = summarize(text)
@@ -401,13 +413,14 @@ def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] 
         logger.error(f"处理爬虫输出失败: {str(e)}")
         return []
     
-def do(source_identifier: Union[int, str], limit: Optional[int] = None) -> bool:
+def do(source_identifier: Union[int, str], limit: Optional[int] = None, debug_mode: bool = False) -> bool:
     """
     执行聚合操作
     
     Args:
         source_identifier: 源ID或名称
         limit: 限制处理的文章数量，None表示处理所有文章
+        debug_mode: 是否启用调试模式，True时会保存原始文本到temp目录
     
     Returns:
         是否成功
@@ -473,7 +486,7 @@ def do(source_identifier: Union[int, str], limit: Optional[int] = None) -> bool:
             return False
         
         # 3. 处理爬虫输出
-        articles = process_crawler_output(crawler_output, source_info, limit)
+        articles = process_crawler_output(crawler_output, source_info, limit, debug_mode)
         
         if not articles:
             logger.warning("没有新文章需要处理")
@@ -531,6 +544,7 @@ def do(source_identifier: Union[int, str], limit: Optional[int] = None) -> bool:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='聚合所有激活源的文章')
     parser.add_argument('-n', '--num-articles', type=int, help='限制每个源处理的文章数量，默认处理所有文章')
+    parser.add_argument('-d', '--debug', action='store_true', help='启用调试模式，保存原始文本到temp目录')
     
     args = parser.parse_args()
     
@@ -547,7 +561,7 @@ if __name__ == "__main__":
     success_count = 0
     for source in sources:
         logger.info(f"开始处理源: {source['name']}")
-        if do(source['id'], args.num_articles):
+        if do(source['id'], args.num_articles, args.debug):
             success_count += 1
         else:
             logger.error(f"处理源 {source['name']} 失败")
