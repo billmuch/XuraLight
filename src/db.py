@@ -66,10 +66,10 @@ def init_db():
     VALUES (0, 'Hacker News', 'python src/crawler_hackernews.py', 1, './media/hacker_news.jpg')
     ''')
     
-    # 添加量子位源
+    # 添加量子位源（默认禁用）
     cursor.execute('''
     INSERT OR IGNORE INTO sources (name, crawler_command, actived, media_path)
-    VALUES ('量子位', 'python src/crawler_qbitai.py', 1, './media/liangziwei.png')
+    VALUES ('量子位', 'python src/crawler_qbitai.py', 0, './media/liangziwei.png')
     ''')
     
     conn.commit()
