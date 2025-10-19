@@ -3,7 +3,7 @@
 Hacker News 爬虫
 
 该脚本使用 Hacker News 官方 Algolia API 获取内容，并以 JSON 格式输出结果。
-输出的内容包括文章标题、URL 和发布时间。
+输出的内容包括文章标题、URL、发布时间和评论页面链接。
 
 优势：
 - 使用官方 API，更稳定可靠
@@ -161,14 +161,19 @@ def parse_stories(api_data):
             else:
                 published_date = datetime.now().isoformat()
             
+            # 构建评论页面 URL
+            object_id = hit.get('objectID', '')
+            comments_url = f"https://news.ycombinator.com/item?id={object_id}" if object_id else ""
+            
             if title and url:
                 story = {
                     "title": title,
                     "url": url,
-                    "published_date": published_date
+                    "published_date": published_date,
+                    "comments_url": comments_url
                 }
                 stories.append(story)
-                print(f"  - 已添加到结果列表", file=sys.stderr)
+                print(f"  - 已添加到结果列表，评论链接: {comments_url}", file=sys.stderr)
         except Exception as e:
             print(f"处理第 {idx+1} 项时出错: {e}", file=sys.stderr)
     

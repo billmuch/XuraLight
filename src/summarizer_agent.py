@@ -26,14 +26,28 @@ PROMPT =  """{article_content}
 输出字数限制在250字内。
 """
 
+# 加载prompt模板
+PROMPT_COMMENTS =  """{comments_content}
+请归纳总结前面文章的评论，用自然语言列举其中的主要观点以及支持和反对这些观点的主要论据。
+输出格式如下：
+
+观点1,支持方，反对方；
+观点2,支持方，反对方；
+......
+
+输出字数限制在200字内。
+"""
+
 def summarize(
     content: str,
+    comments: str = "",
 ) -> Tuple[bool, str]:
     """
     生成文章摘要
     
     Args:
         content: 文章内容
+        comments: 评论内容（可选）
     
     Returns:
         Tuple[bool, str]: (是否成功, 摘要内容或错误信息)
@@ -63,6 +77,26 @@ def summarize(
         
         # 清理摘要文本
         summary = summary.strip()
+        
+        # 如果有评论内容，生成评论总结
+        if comments and comments.strip():
+            logger.info("开始生成评论总结")
+            comments_prompt = PROMPT_COMMENTS.format(comments_content=comments)
+            
+            comments_response = client.chat.completions.create(
+                model="deepseek-r1",
+                messages=[
+                    {"role": "user", "content": comments_prompt}
+                ],
+                temperature=0
+            )
+            
+            # 获取评论总结
+            comments_summary = comments_response.choices[0].message.content.strip()
+            
+            # 将评论总结添加到文章摘要后面
+            summary = f"{summary}\n\n评论总结：\n{comments_summary}"
+            logger.info("评论总结生成完成")
         
         return True, summary
         

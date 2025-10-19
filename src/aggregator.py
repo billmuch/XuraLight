@@ -354,6 +354,19 @@ def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] 
             if not text:
                 logger.warning(f"无法获取文章内容，跳过: {article['url']}")
                 continue
+            
+            # 下载并转换评论内容
+            comments_text = ""
+            if 'comments_url' in article and article['comments_url']:
+                comments_text = download_and_convert_to_text(article['comments_url']) or ""
+                if comments_text:
+                    logger.info(f"成功获取评论内容，长度: {len(comments_text)} 字符")
+                else:
+                    logger.warning(f"无法获取评论内容: {article['comments_url']}")
+            else:
+                logger.info("文章没有评论链接，跳过评论下载")
+
+            
                 
             # 调试：保存原始文本到temp目录（仅在调试模式下执行）
             if debug_mode:
@@ -374,7 +387,7 @@ def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] 
                     logger.error(f"保存调试文件失败: {str(e)}")
             
             # 生成摘要
-            success, result = summarize(text)
+            success, result = summarize(text, comments_text)
             if not success:
                 logger.error(f"生成摘要失败: {result}")
                 continue

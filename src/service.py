@@ -152,7 +152,7 @@ def run_aggregator(source):
         logger.debug(f"开始调用 aggregator.do 函数处理源 {source['name']}")
         
         start_time = datetime.now()
-        success = do(source['id'], debug_mode=False)
+        success = do(source['id'])
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
         
