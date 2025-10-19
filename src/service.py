@@ -173,10 +173,10 @@ def daily_task():
     start_time = datetime.now()
     
     try:
-        # 1. 获取所有源
-        logger.debug("正在获取所有源信息...")
-        sources = get_all_sources()
-        logger.debug(f"获取到 {len(sources) if sources else 0} 个源")
+        # 1. 获取所有激活的源
+        logger.debug("正在获取所有激活的源信息...")
+        sources = get_all_sources(only_actived=True)
+        logger.debug(f"获取到 {len(sources) if sources else 0} 个激活的源")
         
         if not sources:
             logger.warning("没有找到任何源")

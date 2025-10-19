@@ -85,9 +85,9 @@ def generate_report(articles: List[Dict], source_id: Optional[int] = None) -> Di
             return {}
         sources = [source]
     else:
-        sources = get_all_sources()
+        sources = get_all_sources(only_actived=True)
         if not sources:
-            logger.error("没有找到任何源")
+            logger.error("没有找到任何激活的源")
             return {}
     
     report_files = {}  # 存储每个源对应的报告文件
@@ -271,9 +271,9 @@ def generate_test_articles(source_id: Optional[int] = None, days: int = 1) -> Li
             return []
         sources = [source]
     else:
-        sources = get_all_sources()
+        sources = get_all_sources(only_actived=True)
         if not sources:
-            logger.error("没有找到任何源")
+            logger.error("没有找到任何激活的源")
             return []
     
     # 获取所有文章
