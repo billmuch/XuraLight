@@ -65,7 +65,7 @@ def summarize(
         )
         
         response = client.chat.completions.create(
-            model="deepseek-r1",
+            model="deepseek-v3",
             messages=[
                 {"role": "user", "content": prompt}
             ],
@@ -84,7 +84,7 @@ def summarize(
             comments_prompt = PROMPT_COMMENTS.format(comments_content=comments)
             
             comments_response = client.chat.completions.create(
-                model="deepseek-r1",
+                model="deepseek-v3",
                 messages=[
                     {"role": "user", "content": comments_prompt}
                 ],
