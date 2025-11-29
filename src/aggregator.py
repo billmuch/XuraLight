@@ -38,6 +38,79 @@ logger = logging.getLogger(__name__)
 # 添加常量
 MAX_SUMMARY_TEXT_LENGTH = 120000  # 用于生成摘要的最大文本长度
 
+def download_hackernews_comments(item_id: str) -> Optional[str]:
+    """
+    从 HackerNews Algolia API 下载评论内容
+    
+    Args:
+        item_id: HackerNews 文章ID
+    
+    Returns:
+        格式化的评论文本或None
+    """
+    try:
+        api_url = f"https://hn.algolia.com/api/v1/items/{item_id}"
+        logger.info(f"从 Algolia API 获取评论: {api_url}")
+        
+        # 尝试使用代理
+        proxies = {
+            'http': 'http://127.0.0.1:7890',
+            'https': 'http://127.0.0.1:7890'
+        }
+        
+        # 首先尝试不使用代理
+        try:
+            response = requests.get(api_url, timeout=30)
+            response.raise_for_status()
+        except Exception as e:
+            logger.warning(f"直接请求失败，尝试使用代理: {str(e)}")
+            response = requests.get(api_url, proxies=proxies, timeout=30)
+            response.raise_for_status()
+        
+        data = response.json()
+        
+        # 递归提取评论文本
+        def extract_comments(item, level=0):
+            comments = []
+            if not item:
+                return comments
+            
+            # 提取当前评论文本
+            if 'text' in item and item['text']:
+                # 使用html2text转换HTML格式的评论
+                h = html2text.HTML2Text()
+                h.ignore_links = True
+                h.ignore_images = True
+                h.body_width = 0
+                comment_text = h.handle(item['text']).strip()
+                
+                # 添加作者和缩进
+                author = item.get('author', 'anonymous')
+                indent = "  " * level
+                comments.append(f"{indent}[{author}]: {comment_text}")
+            
+            # 递归处理子评论
+            if 'children' in item and item['children']:
+                for child in item['children']:
+                    comments.extend(extract_comments(child, level + 1))
+            
+            return comments
+        
+        # 提取所有评论
+        all_comments = extract_comments(data)
+        
+        if all_comments:
+            comments_text = "\n\n".join(all_comments)
+            logger.info(f"成功获取 {len(all_comments)} 条评论，总长度: {len(comments_text)} 字符")
+            return comments_text
+        else:
+            logger.info("该文章没有评论")
+            return None
+            
+    except Exception as e:
+        logger.error(f"从 Algolia API 获取评论失败: {str(e)}")
+        return None
+
 def get_source_info(source_identifier: Union[int, str]) -> Optional[Dict]:
     """
     根据ID或名称获取源信息
@@ -358,7 +431,17 @@ def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] 
             # 下载并转换评论内容
             comments_text = ""
             if 'comments_url' in article and article['comments_url']:
-                comments_text = download_and_convert_to_text(article['comments_url']) or ""
+                # 检测是否是 HackerNews 评论链接
+                hn_match = re.search(r'news\.ycombinator\.com/item\?id=(\d+)', article['comments_url'])
+                if hn_match:
+                    # 使用 Algolia API 获取评论
+                    item_id = hn_match.group(1)
+                    logger.info(f"检测到 HackerNews 评论链接，使用 Algolia API 获取评论: {item_id}")
+                    comments_text = download_hackernews_comments(item_id) or ""
+                else:
+                    # 其他来源的评论，使用原来的方法
+                    comments_text = download_and_convert_to_text(article['comments_url']) or ""
+                
                 if comments_text:
                     logger.info(f"成功获取评论内容，长度: {len(comments_text)} 字符")
                 else:

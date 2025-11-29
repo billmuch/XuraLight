@@ -4,3 +4,4 @@ reports/
 temp/
 *.pyc
 xura.db
+reports/

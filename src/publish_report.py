@@ -213,6 +213,15 @@ def publish_report(report_file, source_name, media_path=None):
             for img_tag in soup.find_all('img'):
                 img_tag['style'] = 'max-width: 100%; height: auto;'
             
+            # 在文章分隔符（hr标签）后添加两行空行，使文章间隔更明显
+            from bs4 import NavigableString
+            for hr_tag in soup.find_all('hr'):
+                # 在hr标签后插入两个br标签
+                br1 = soup.new_tag('br')
+                br2 = soup.new_tag('br')
+                hr_tag.insert_after(br2)
+                hr_tag.insert_after(br1)
+            
             # 转换回字符串
             formatted_html = str(soup)
             
