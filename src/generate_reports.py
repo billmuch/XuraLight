@@ -162,6 +162,7 @@ def generate_report(articles: List[Dict], source_id: Optional[int] = None) -> Di
         
         # 生成报告内容（Markdown格式）
         with open(report_filename, 'w', encoding='utf-8') as f:
+            f.write(f"*通勤路上“听”热点*\n")
             header_text = f"**本次共有 {len(target_articles)} 篇文章更新**\n\n"
             header_text += "---\n\n"
             f.write(header_text)
