@@ -41,65 +41,109 @@ PROMPT_COMMENTS =  """{comments_content}
 def summarize(
     content: str,
     comments: str = "",
+    model: str = "glm-4.7",
 ) -> Tuple[bool, str]:
     """
     生成文章摘要
-    
+
     Args:
         content: 文章内容
         comments: 评论内容（可选）
-    
+        model: 使用的模型，可选 "glm-4.7" (默认) 或 "deepseek-v3-0324"
+
     Returns:
         Tuple[bool, str]: (是否成功, 摘要内容或错误信息)
     """
     # 填充prompt模板
     prompt = PROMPT.format(article_content=content)
-    
+
     try:
-        # 调用 OpenAI API 生成摘要
-        from openai import OpenAI
-        
-        client = OpenAI(
-            api_key=os.getenv("TENCENT_LLM_API_KEY"),
-            base_url="https://api.lkeap.cloud.tencent.com/v1",
-        )
-        
-        response = client.chat.completions.create(
-            model="deepseek-v3-0324",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0
-        )
-        
-        # 获取摘要
-        summary = response.choices[0].message.content
-        
+        # 根据模型选择使用不同的API
+        if model == "deepseek-v3-0324":
+            # 使用腾讯LLM API 生成摘要
+            from openai import OpenAI
+
+            api_key = os.getenv("TENCENT_LLM_API_KEY")
+            if not api_key:
+                error_msg = "使用 deepseek-v3-0324 模型需要设置 TENCENT_LLM_API_KEY 环境变量"
+                logger.error(error_msg)
+                return False, error_msg
+
+            client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.lkeap.cloud.tencent.com/v1",
+            )
+
+            response = client.chat.completions.create(
+                model="deepseek-v3-0324",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0
+            )
+
+            # 获取摘要
+            summary = response.choices[0].message.content
+
+        else:  # 默认使用 glm-4.7
+            # 使用智谱AI API 生成摘要
+            from zhipuai import ZhipuAI
+
+            api_key = os.getenv("ZHIPU_API_KEY")
+            if not api_key:
+                error_msg = "使用 glm-4.7 模型需要设置 ZHIPU_API_KEY 环境变量"
+                logger.error(error_msg)
+                return False, error_msg
+
+            client = ZhipuAI(api_key=api_key)
+
+            response = client.chat.completions.create(
+                model="glm-4.7",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0
+            )
+
+            # 获取摘要
+            summary = response.choices[0].message.content
+
         # 清理摘要文本
         summary = summary.strip()
-        
+
         # 如果有评论内容，生成评论总结
         if comments and comments.strip():
             logger.info("开始生成评论总结")
             comments_prompt = PROMPT_COMMENTS.format(comments_content=comments)
-            
-            comments_response = client.chat.completions.create(
-                model="deepseek-v3-0324",
-                messages=[
-                    {"role": "user", "content": comments_prompt}
-                ],
-                temperature=0
-            )
-            
+
+            if model == "deepseek-v3-0324":
+                # 使用腾讯LLM API生成评论总结
+                comments_response = client.chat.completions.create(
+                    model="deepseek-v3-0324",
+                    messages=[
+                        {"role": "user", "content": comments_prompt}
+                    ],
+                    temperature=0
+                )
+            else:  # 默认使用 glm-4.7
+                # 使用智谱AI API生成评论总结
+                comments_response = client.chat.completions.create(
+                    model="glm-4.7",
+                    messages=[
+                        {"role": "user", "content": comments_prompt}
+                    ],
+                    temperature=0
+                )
+
             # 获取评论总结
             comments_summary = comments_response.choices[0].message.content.strip()
-            
+
             # 将评论总结添加到文章摘要后面
             summary = f"{summary}\n\n评论总结：\n{comments_summary}"
             logger.info("评论总结生成完成")
-        
+
         return True, summary
-        
+
     except Exception as e:
         error_msg = f"生成摘要时出错: {str(e)}"
         logger.error(error_msg)

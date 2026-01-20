@@ -385,16 +385,17 @@ def save_abstract_with_audio(text: str, source_name: str, timestamp: int, title:
         logger.error(f"保存摘要和语音文件失败: {str(e)}")
         return None, None
 
-def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] = None, debug_mode: bool = False) -> List[Dict]:
+def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] = None, debug_mode: bool = False, model: str = "glm-4.7") -> List[Dict]:
     """
     处理爬虫输出
-    
+
     Args:
         output: 爬虫输出的JSON字符串
         source_info: 源信息字典
         limit: 限制处理的文章数量，None表示处理所有文章
         debug_mode: 是否启用调试模式，True时会保存原始文本到temp目录
-    
+        model: 使用的AI模型，可选 "glm-4.7" (默认) 或 "deepseek-v3-0324"
+
     Returns:
         处理后的文章列表
     """
@@ -470,7 +471,7 @@ def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] 
                     logger.error(f"保存调试文件失败: {str(e)}")
             
             # 生成摘要
-            success, result = summarize(text, comments_text)
+            success, result = summarize(text, comments_text, model=model)
             if not success:
                 logger.error(f"生成摘要失败: {result}")
                 continue
@@ -509,15 +510,16 @@ def process_crawler_output(output: str, source_info: Dict, limit: Optional[int] 
         logger.error(f"处理爬虫输出失败: {str(e)}")
         return []
     
-def do(source_identifier: Union[int, str], limit: Optional[int] = None, debug_mode: bool = False) -> bool:
+def do(source_identifier: Union[int, str], limit: Optional[int] = None, debug_mode: bool = False, model: str = "glm-4.7") -> bool:
     """
     执行聚合操作
-    
+
     Args:
         source_identifier: 源ID或名称
         limit: 限制处理的文章数量，None表示处理所有文章
         debug_mode: 是否启用调试模式，True时会保存原始文本到temp目录
-    
+        model: 使用的AI模型，可选 "glm-4.7" (默认) 或 "deepseek-v3-0324"
+
     Returns:
         是否成功
     """
@@ -528,8 +530,9 @@ def do(source_identifier: Union[int, str], limit: Optional[int] = None, debug_mo
             logger.error(f"未找到源: {source_identifier}")
             return False
         
-        logger.info(f"开始处理源: {source_info['name']}" + 
-                   (f"，限制处理前 {limit} 篇文章" if limit else "，处理所有文章"))
+        logger.info(f"开始处理源: {source_info['name']}" +
+                   (f"，限制处理前 {limit} 篇文章" if limit else "，处理所有文章") +
+                   f"，使用模型: {model}")
         
         # 2. 执行爬虫命令
         # 移除命令中的 src/ 前缀
@@ -582,7 +585,7 @@ def do(source_identifier: Union[int, str], limit: Optional[int] = None, debug_mo
             return False
         
         # 3. 处理爬虫输出
-        articles = process_crawler_output(crawler_output, source_info, limit, debug_mode)
+        articles = process_crawler_output(crawler_output, source_info, limit, debug_mode, model)
         
         if not articles:
             logger.warning("没有新文章需要处理")
@@ -641,27 +644,30 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='聚合所有激活源的文章')
     parser.add_argument('-n', '--num-articles', type=int, help='限制每个源处理的文章数量，默认处理所有文章')
     parser.add_argument('-d', '--debug', action='store_true', help='启用调试模式，保存原始文本到temp目录')
-    
+    parser.add_argument('-m', '--model', type=str, default='glm-4.7',
+                        choices=['glm-4.7', 'deepseek-v3-0324'],
+                        help='使用的AI模型，默认为 glm-4.7')
+
     args = parser.parse_args()
-    
+
     # 获取所有激活的源
     sources = get_active_sources()
-    
+
     if not sources:
         logger.error("没有找到激活的源")
         sys.exit(1)
-    
+
     logger.info(f"找到 {len(sources)} 个激活的源")
-    
+
     # 处理每个激活的源
     success_count = 0
     for source in sources:
         logger.info(f"开始处理源: {source['name']}")
-        if do(source['id'], args.num_articles, args.debug):
+        if do(source['id'], args.num_articles, args.debug, args.model):
             success_count += 1
         else:
             logger.error(f"处理源 {source['name']} 失败")
-    
+
     logger.info(f"处理完成。成功处理 {success_count}/{len(sources)} 个源")
     sys.exit(0 if success_count == len(sources) else 1)
 

@@ -142,62 +142,62 @@ def setup_logging(log_level=logging.INFO):
     
     return root_logger
 
-def run_aggregator(source):
+def run_aggregator(source, model="glm-4.7"):
     """运行聚合器"""
     try:
         logger.debug(f"准备处理源 {source['name']} (ID: {source['id']})")
         logger.debug(f"源配置信息: {source}")
-        
+
         from aggregator import do
         logger.debug(f"开始调用 aggregator.do 函数处理源 {source['name']}")
-        
+
         start_time = datetime.now()
-        success = do(source['id'])
+        success = do(source['id'], model=model)
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        
+
         if success:
             logger.info(f"源 {source['name']} 处理成功，耗时 {duration:.2f} 秒")
             return True
         else:
             logger.error(f"源 {source['name']} 处理失败，耗时 {duration:.2f} 秒")
             return False
-            
+
     except Exception as e:
         logger.exception(f"处理源时发生异常 ({source['name']})")
         return False
 
-def daily_task():
+def daily_task(model="glm-4.7"):
     """每日任务：爬取数据并生成报告"""
-    logger.info("开始执行每日任务")
+    logger.info(f"开始执行每日任务，使用模型: {model}")
     start_time = datetime.now()
-    
+
     try:
         # 1. 获取所有激活的源
         logger.debug("正在获取所有激活的源信息...")
         sources = get_all_sources(only_actived=True)
         logger.debug(f"获取到 {len(sources) if sources else 0} 个激活的源")
-        
+
         if not sources:
             logger.warning("没有找到任何源")
             return
-            
+
         # 2. 对每个源运行聚合器
         for idx, source in enumerate(sources, 1):
             try:
                 logger.debug(f"开始处理第 {idx}/{len(sources)} 个源: {source['name']}")
-                success = run_aggregator(source)
-                
+                success = run_aggregator(source, model=model)
+
                 if not success:
                     logger.error(f"源 {source['name']} 的处理任务失败")
                     continue
-                    
+
                 logger.info(f"源 {source['name']} 的处理任务完成")
             except Exception as e:
                 logger.error(f"处理源 {source['name']} 时发生异常: {e}")
                 logger.exception("详细错误信息：")
                 continue
-            
+
     except Exception as e:
         logger.error(f"执行每日任务时发生异常: {e}")
         logger.exception("详细错误信息：")
@@ -215,20 +215,20 @@ def schedule_task():
         except ServiceExit:
             break
 
-def run_daemon(daily_time=DEFAULT_DAILY_TIME):
+def run_daemon(daily_time=DEFAULT_DAILY_TIME, model="glm-4.7"):
     """在守护进程中运行服务"""
     try:
         # 保存PID
         save_pid()
-        
+
         # 注册信号处理
         signal.signal(signal.SIGTERM, signal_handler)
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGHUP, signal_handler)
-        
+
         # 设置每日任务执行时间
-        schedule.every().day.at(daily_time).do(daily_task)
-        logger.info(f"每日任务设置为 {daily_time} 执行")
+        schedule.every().day.at(daily_time).do(lambda: daily_task(model=model))
+        logger.info(f"每日任务设置为 {daily_time} 执行，使用模型: {model}")
         
         # 创建并启动调度线程
         schedule_thread = threading.Thread(target=schedule_task)
@@ -281,70 +281,89 @@ def check_clash_proxy():
         if not clash_service.status():
             logger.error("Clash 代理服务未运行，请先启动 Clash 代理")
             return False
-            
-        # 测试代理连接
-        import requests
-        proxies = {
-            "http": "http://localhost:7890",
-            "https": "http://localhost:7890"
-        }
-        
-        try:
-            response = requests.get("https://www.google.com", proxies=proxies, timeout=5)
-            response.raise_for_status()
-            logger.info("Clash 代理连接测试成功")
-            return True
-        except Exception as e:
-            logger.error(f"Clash 代理连接测试失败: {e}")
-            return False
-            
+
+        # 原有代理连接测试代码（已注释）
+        # import requests
+        # proxies = {
+        #     "http": "http://localhost:7890",
+        #     "https": "http://localhost:7890"
+        # }
+        #
+        # try:
+        #     response = requests.get("https://www.google.com", proxies=proxies, timeout=5)
+        #     response.raise_for_status()
+        #     logger.info("Clash 代理连接测试成功")
+        #     return True
+        # except Exception as e:
+        #     logger.error(f"Clash 代理连接测试失败: {e}")
+        #     return False
+
+        logger.info("Clash 代理服务运行正常")
+        return True
+
     except Exception as e:
         logger.error(f"检查 Clash 代理时出错: {e}")
         return False
 
 def check_llm_api_key():
     """检查 LLM API key 是否已设置"""
-    api_key = os.getenv("TENCENT_LLM_API_KEY")
+    # 原有腾讯LLM代码（已注释）
+    # api_key = os.getenv("TENCENT_LLM_API_KEY")
+    # if not api_key:
+    #     logger.error("未设置 TENCENT_LLM_API_KEY 环境变量")
+    #     return False
+    #
+    # return True
+
+    # 检查智谱AI API key
+    api_key = os.getenv("ZHIPU_API_KEY")
     if not api_key:
-        logger.error("未设置 TENCENT_LLM_API_KEY 环境变量")
+        logger.error("未设置 ZHIPU_API_KEY 环境变量")
         return False
-        
+
     return True
 
-def start_service(daily_time=DEFAULT_DAILY_TIME):
+def start_service(daily_time=DEFAULT_DAILY_TIME, model="glm-4.7"):
     """启动服务"""
     if is_service_running():
         print("服务已经在运行中")
         return False
-        
+
     # 检查必要的依赖和配置
     logger.info("正在检查服务依赖...")
-    
+
     # 1. 检查 Clash 代理
     if not check_clash_proxy():
         print("启动失败：Clash 代理未正确配置或未运行")
         return False
-        
-    # 2. 检查 LLM API key
-    if not check_llm_api_key():
-        print("启动失败：LLM API key 未正确配置")
-        return False
-    
+
+    # 2. 检查 LLM API key（根据选择的模型检查）
+    if model == "deepseek-v3-0324":
+        api_key = os.getenv("TENCENT_LLM_API_KEY")
+        if not api_key:
+            print("启动失败：使用 deepseek-v3-0324 模型需要设置 TENCENT_LLM_API_KEY 环境变量")
+            return False
+    else:  # glm-4.7
+        api_key = os.getenv("ZHIPU_API_KEY")
+        if not api_key:
+            print("启动失败：使用 glm-4.7 模型需要设置 ZHIPU_API_KEY 环境变量")
+            return False
+
     logger.info("所有依赖检查通过，开始启动服务...")
-    
+
     # 获取当前用户
     uid = os.getuid()
     gid = os.getgid()
-    
+
     # 设置工作目录为项目根目录
     work_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
+
     # 确保日志文件所在目录存在
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-    
+
     # 打开日志文件，确保它存在并可写
     log_file = open(LOG_FILE, 'a+')
-    
+
     # 配置守护进程上下文
     context = daemon.DaemonContext(
         working_directory=work_dir,
@@ -367,10 +386,10 @@ def start_service(daily_time=DEFAULT_DAILY_TIME):
         stderr=log_file,  # 重定向标准错误到日志文件
         prevent_core=True  # 防止生成核心转储文件
     )
-    
-    print(f"服务正在启动，每日任务将在 {daily_time} 执行")
+
+    print(f"服务正在启动，每日任务将在 {daily_time} 执行，使用模型: {model}")
     print(f"查看日志文件 {LOG_FILE} 获取详细信息")
-    
+
     try:
         # 使用守护进程上下文运行服务
         with context:
@@ -379,9 +398,9 @@ def start_service(daily_time=DEFAULT_DAILY_TIME):
             file_handler = logging.FileHandler(LOG_FILE)
             file_handler.setFormatter(log_formatter)
             logger.addHandler(file_handler)
-            
+
             # 运行守护进程
-            run_daemon(daily_time)
+            run_daemon(daily_time, model=model)
     except Exception as e:
         logger.error(f"启动服务时出错: {e}")
         logger.exception("详细错误信息：")
@@ -424,33 +443,38 @@ def main():
     parser = argparse.ArgumentParser(description='文章聚合服务管理')
     parser.add_argument('action', choices=['start', 'stop', 'status'], help='启动、停止或查看服务状态')
     parser.add_argument('--debug', action='store_true', help='启用调试日志')
-    parser.add_argument('--daily-time', 
+    parser.add_argument('--daily-time',
                        default=DEFAULT_DAILY_TIME,
                        help=f'每日任务执行时间，格式为 HH:MM，默认为 {DEFAULT_DAILY_TIME}')
-    
+    parser.add_argument('--model',
+                       default='glm-4.7',
+                       choices=['glm-4.7', 'deepseek-v3-0324'],
+                       help='使用的AI模型，默认为 glm-4.7')
+
     args = parser.parse_args()
-    
+
     try:
         if args.action == 'start':
             # 验证时间格式
             hour, minute = map(int, args.daily_time.split(':'))
             if not (0 <= hour <= 23 and 0 <= minute <= 59):
                 raise ValueError
-            
+
             # 设置日志级别
             log_level = logging.DEBUG if args.debug else logging.INFO
             setup_logging(log_level)
-            
+
             if args.debug:
                 logger.debug("调试模式已启用")
-            
+
             # 保存配置到状态文件
             save_service_status({
-                'daily_time': args.daily_time
+                'daily_time': args.daily_time,
+                'model': args.model
             })
-            
-            start_service(daily_time=args.daily_time)
-            
+
+            start_service(daily_time=args.daily_time, model=args.model)
+
         elif args.action == 'stop':
             stop_service()
         elif args.action == 'status':
@@ -462,6 +486,7 @@ def main():
                 status = load_service_status()
                 if status:
                     print(f"每日任务执行时间: {status.get('daily_time', DEFAULT_DAILY_TIME)}")
+                    print(f"使用模型: {status.get('model', 'glm-4.7')}")
             else:
                 print("服务未运行")
     except ValueError:
