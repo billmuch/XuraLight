@@ -274,54 +274,6 @@ def run_daemon(daily_time=DEFAULT_DAILY_TIME, model="glm-4.7"):
         logger.info("服务已停止")
         sys.exit(1)
 
-def check_clash_proxy():
-    """检查 Clash 代理是否正常运行"""
-    try:
-        import clash_service
-        if not clash_service.status():
-            logger.error("Clash 代理服务未运行，请先启动 Clash 代理")
-            return False
-
-        # 原有代理连接测试代码（已注释）
-        # import requests
-        # proxies = {
-        #     "http": "http://localhost:7890",
-        #     "https": "http://localhost:7890"
-        # }
-        #
-        # try:
-        #     response = requests.get("https://www.google.com", proxies=proxies, timeout=5)
-        #     response.raise_for_status()
-        #     logger.info("Clash 代理连接测试成功")
-        #     return True
-        # except Exception as e:
-        #     logger.error(f"Clash 代理连接测试失败: {e}")
-        #     return False
-
-        logger.info("Clash 代理服务运行正常")
-        return True
-
-    except Exception as e:
-        logger.error(f"检查 Clash 代理时出错: {e}")
-        return False
-
-def check_llm_api_key():
-    """检查 LLM API key 是否已设置"""
-    # 原有腾讯LLM代码（已注释）
-    # api_key = os.getenv("TENCENT_LLM_API_KEY")
-    # if not api_key:
-    #     logger.error("未设置 TENCENT_LLM_API_KEY 环境变量")
-    #     return False
-    #
-    # return True
-
-    # 检查智谱AI API key
-    api_key = os.getenv("ZHIPU_API_KEY")
-    if not api_key:
-        logger.error("未设置 ZHIPU_API_KEY 环境变量")
-        return False
-
-    return True
 
 def start_service(daily_time=DEFAULT_DAILY_TIME, model="glm-4.7"):
     """启动服务"""
@@ -332,12 +284,7 @@ def start_service(daily_time=DEFAULT_DAILY_TIME, model="glm-4.7"):
     # 检查必要的依赖和配置
     logger.info("正在检查服务依赖...")
 
-    # 1. 检查 Clash 代理
-    if not check_clash_proxy():
-        print("启动失败：Clash 代理未正确配置或未运行")
-        return False
-
-    # 2. 检查 LLM API key（根据选择的模型检查）
+    # 检查 LLM API key（根据选择的模型检查）
     if model == "deepseek-v3-0324":
         api_key = os.getenv("TENCENT_LLM_API_KEY")
         if not api_key:

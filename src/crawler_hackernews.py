@@ -48,7 +48,7 @@ def get_hacker_news_page(page_num=1):
     
     try:
         # 尝试使用代理
-        proxy_url = "http://localhost:7890"
+        proxy_url = "http://localhost:9674"
         print(f"尝试使用代理: {proxy_url}", file=sys.stderr)
         
         # 构建 curl 命令

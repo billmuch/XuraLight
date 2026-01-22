@@ -54,8 +54,8 @@ def download_hackernews_comments(item_id: str) -> Optional[str]:
         
         # 尝试使用代理
         proxies = {
-            'http': 'http://127.0.0.1:7890',
-            'https': 'http://127.0.0.1:7890'
+            'http': 'http://127.0.0.1:9674',
+            'https': 'http://127.0.0.1:9674'
         }
         
         # 首先尝试不使用代理
@@ -256,8 +256,8 @@ def download_and_convert_to_text(url: str) -> Optional[str]:
             retry_count += 1
             logger.warning(f"请求出错 ({retry_count}/{max_retries+1}): {url}, 错误: {str(e)}")
             proxies = {
-                'http': 'http://127.0.0.1:7890',
-                'https': 'http://127.0.0.1:7890'
+                'http': 'http://127.0.0.1:9674',
+                'https': 'http://127.0.0.1:9674'
             }
             time.sleep(3)
     
