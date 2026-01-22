@@ -95,7 +95,10 @@ def summarize(
                 logger.error(error_msg)
                 return False, error_msg
 
-            client = ZhipuAI(api_key=api_key)
+            client = ZhipuAI(
+                api_key=api_key,
+                base_url="https://open.bigmodel.cn/api/paas/v4"
+            )
 
             response = client.chat.completions.create(
                 model="glm-4.7",
