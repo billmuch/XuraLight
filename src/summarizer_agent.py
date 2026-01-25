@@ -97,7 +97,7 @@ def summarize(
 
             client = ZhipuAI(
                 api_key=api_key,
-                base_url="https://open.bigmodel.cn/api/paas/v4"
+                base_url="https://open.bigmodel.cn/api/coding/paas/v4"
             )
 
             response = client.chat.completions.create(
